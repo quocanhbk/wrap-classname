@@ -29,54 +29,56 @@ async function wrapClassName() {
     return;
   }
 
-  for (let line = 0; line < document.lineCount; line++) {
-    let text = document.lineAt(line).text;
+  const cursorPosition = editor.selection.active;
+  const line = cursorPosition.line;
+  let text = document.lineAt(line).text;
 
-    let match: RegExpExecArray | null;
-    while ((match = classNamePattern.exec(text)) !== null) {
-      const cursorPosition = editor.selection.active;
+  let match: RegExpExecArray | null;
+  while ((match = classNamePattern.exec(text)) !== null) {
+    // Check if cursor is inside the className attribute
+    if (
+      cursorPosition.character > match.index &&
+      cursorPosition.character < match.index + match[0].length
+    ) {
+      const fullMatchStart = new vscode.Position(line, match.index);
+      const fullMatchEnd = new vscode.Position(
+        line,
+        match.index + match[0].length
+      );
+      const fullMatchSelection = new vscode.Selection(
+        fullMatchStart,
+        fullMatchEnd
+      );
 
-      // Check if cursor is inside the className attribute
-      if (
-        cursorPosition.line === line &&
-        cursorPosition.character > match.index &&
-        cursorPosition.character < match.index + match[0].length
-      ) {
-        const fullMatchStart = new vscode.Position(line, match.index);
-        const fullMatchEnd = new vscode.Position(
-          line,
-          match.index + match[0].length
-        );
-        const fullMatchSelection = new vscode.Selection(
-          fullMatchStart,
-          fullMatchEnd
-        );
+      let className = match[2];
 
-        const className = match[2];
-
-        // Don't modify if already wrapped in wrap functions
-        if (className.trim().startsWith(`{${wrapFunction}(`)) {
-          return;
-        }
-
-        let newClassName = `className={${wrapFunction}(${className}${")"}}`;
-
-        await editor.edit((editBuilder) => {
-          editBuilder.replace(fullMatchSelection, newClassName);
-        });
-
-        // Move cursor to before the closing parenthesis of the last wrap function
-        const newCursorPosition = new vscode.Position(
-          cursorPosition.line,
-          fullMatchStart.character + newClassName.length - 2
-        );
-        editor.selection = new vscode.Selection(
-          newCursorPosition,
-          newCursorPosition
-        );
-
+      // Don't modify if already wrapped in wrap function
+      if (className.trim().startsWith(`{${wrapFunction}(`)) {
         return;
       }
+
+      // remove braces if already wrapped
+      if (className.trim().startsWith("{") && className.trim().endsWith("}")) {
+        className = className.slice(1, -1);
+      }
+
+      let newClassName = `className={${wrapFunction}(${className})}`;
+
+      await editor.edit((editBuilder) => {
+        editBuilder.replace(fullMatchSelection, newClassName);
+      });
+
+      // Move cursor to before the closing parenthesis of the last wrap function
+      const newCursorPosition = new vscode.Position(
+        cursorPosition.line,
+        fullMatchStart.character + newClassName.length - 1
+      );
+      editor.selection = new vscode.Selection(
+        newCursorPosition,
+        newCursorPosition
+      );
+
+      return;
     }
   }
 }
